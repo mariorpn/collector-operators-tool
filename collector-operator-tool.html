@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coletor e Processador de Operadores OpenShift</title>
+    <!-- Carrega o Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carrega a fonte Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Define a fonte Inter como padrão */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Ajusta a altura dos textareas */
+        textarea {
+            height: 150px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+    <div class="max-w-5xl mx-auto bg-white p-6 md:p-8 rounded-lg shadow-lg">
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-6">Coletor e Processador de Operadores OpenShift</h1>
+
+        <!-- Instruções para Coleta -->
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold text-blue-800 mb-3">Instruções</h2>
+            <p class="text-sm text-blue-700 mb-4">
+                Para coletar os dados, execute os seguintes comandos `oc` no seu terminal (logado no cluster desejado) e cole a saída JSON completa nos campos correspondentes abaixo.
+            </p>
+            <div class="space-y-4">
+                <!-- Passo 1: Subscriptions -->
+                <div>
+                    <label for="json-subs" class="block text-sm font-medium text-gray-700 mb-1">
+                        1. Dados das Subscrições (Subscriptions)
+                    </label>
+                    <code class="block bg-gray-900 text-gray-100 p-2 rounded-md text-xs mb-2 select-all">
+                        oc get subscription.operators.coreos.com --all-namespaces -o json
+                    </code>
+                    <textarea id="json-subs" name="json-subs" required placeholder="Cole o JSON das Subscriptions aqui..."
+                              class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-xs"></textarea>
+                </div>
+
+                <!-- Passo 2: CSVs -->
+                <div>
+                    <label for="json-csvs" class="block text-sm font-medium text-gray-700 mb-1">
+                        2. Dados das Versões (ClusterServiceVersions)
+                    </label>
+                    <code class="block bg-gray-900 text-gray-100 p-2 rounded-md text-xs mb-2 select-all">
+                        oc get clusterserviceversion.operators.coreos.com --all-namespaces -o json
+                    </code>
+                    <textarea id="json-csvs" name="json-csvs" required placeholder="Cole o JSON dos CSVs aqui..."
+                              class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-xs"></textarea>
+                </div>
+
+                <!-- Passo 3: Versão do Cluster -->
+                <div>
+                    <label for="json-version" class="block text-sm font-medium text-gray-700 mb-1">
+                        3. Versão do Cluster OpenShift
+                    </label>
+                    <code class="block bg-gray-900 text-gray-100 p-2 rounded-md text-xs mb-2 select-all">
+                        oc get clusterversion version -o json
+                    </code>
+                    <textarea id="json-version" name="json-version" required placeholder="Cole o JSON do ClusterVersion aqui..."
+                              class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-xs" style="height: 100px;"></textarea>
+                </div>
+            </div>
+            
+            <div class="text-right mt-4">
+                <button id="process-json"
+                        class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Processar Dados
+                </button>
+            </div>
+            <p id="error-message" class="text-sm text-red-600 mt-2 hidden"></p>
+        </div>
+
+
+        <!-- Botões de Ação -->
+        <div class="flex flex-col md:flex-row gap-2 mb-6">
+            <button id="export-csv"
+                    class="w-full md:w-auto inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                Exportar para CSV
+            </button>
+            <button id="clear-data"
+                    class="w-full md:w-auto inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+                Limpar Todos os Dados
+            </button>
+        </div>
+        
+        <!-- Tabela de Dados Salvos -->
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">Operadores Processados</h2>
+        <div class="overflow-x-auto rounded-lg border border-gray-200">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Versão Instalada</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Canal</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mantido (RH)</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Versão OCP</th>
+                    </tr>
+                </thead>
+                <tbody id="operator-list" class="bg-white divide-y divide-gray-200">
+                    <!-- Linhas serão injetadas pelo JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <p id="no-data-message" class="text-center text-gray-500 mt-4 py-4">Nenhum dado processado ainda.</p>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const operatorList = document.getElementById('operator-list');
+            const exportButton = document.getElementById('export-csv');
+            const clearButton = document.getElementById('clear-data');
+            const processButton = document.getElementById('process-json');
+            const noDataMessage = document.getElementById('no-data-message');
+            const errorMessage = document.getElementById('error-message');
+
+            const jsonSubsEl = document.getElementById('json-subs');
+            const jsonCsvsEl = document.getElementById('json-csvs');
+            const jsonVersionEl = document.getElementById('json-version');
+            
+            let operators = []; // Armazena os dados processados
+
+            // Atualiza a visualização da tabela
+            function renderTable() {
+                operatorList.innerHTML = ''; // Limpa a tabela
+                
+                if (operators.length === 0) {
+                    noDataMessage.classList.remove('hidden');
+                } else {
+                    noDataMessage.classList.add('hidden');
+                }
+
+                // Filtra para versões do OCP 4.14 ou superior, se a versão for válida
+                const filteredOperators = operators.filter(op => {
+                    if (!op.ocpVersion || op.ocpVersion === 'N/A') return true; // Mantém se não puder determinar
+                    
+                    const [major, minor] = op.ocpVersion.split('.').map(Number);
+                    if (isNaN(major) || isNaN(minor)) return true; // Mantém se a versão for estranha
+
+                    if (major > 4) return true;
+                    if (major === 4 && minor >= 14) return true;
+                    
+                    return false; // Filtra versões anteriores (ex: 4.13)
+                });
+
+
+                filteredOperators.forEach(op => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50';
+                    
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${escapeHTML(op.name)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${escapeHTML(op.version)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${escapeHTML(op.channel)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${op.maintainedByRedHat ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                                ${op.maintainedByRedHat ? 'Sim' : 'Não'}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${escapeHTML(op.ocpVersion)}</td>
+                    `;
+                    operatorList.appendChild(row);
+                });
+            }
+            
+            // Função para escapar HTML e evitar XSS
+            function escapeHTML(str) {
+                if (!str) return '';
+                return str.toString()
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+            
+            // Limpa todos os dados (JSON e tabela)
+            clearButton.addEventListener('click', () => {
+                operators = [];
+                jsonSubsEl.value = '';
+                jsonCsvsEl.value = '';
+                jsonVersionEl.value = '';
+                errorMessage.textContent = '';
+                errorMessage.classList.add('hidden');
+                renderTable();
+            });
+
+            // Processa o JSON colado
+            processButton.addEventListener('click', () => {
+                operators = []; // Reseta os operadores a cada processamento
+                errorMessage.textContent = '';
+                errorMessage.classList.add('hidden');
+
+                let jsonSubs, jsonCsvs, jsonVersion;
+                
+                // 1. Parseia os JSONs
+                try {
+                    jsonSubs = JSON.parse(jsonSubsEl.value);
+                } catch (e) {
+                    showError('Erro ao processar JSON das Subscriptions: ' + e.message);
+                    return;
+                }
+                
+                try {
+                    jsonCsvs = JSON.parse(jsonCsvsEl.value);
+                } catch (e) {
+                    showError('Erro ao processar JSON dos CSVs: ' + e.message);
+                    return;
+                }
+                
+                try {
+                    jsonVersion = JSON.parse(jsonVersionEl.value);
+                } catch (e) {
+                    showError('Erro ao processar JSON da Versão do Cluster: ' + e.message);
+                    return;
+                }
+
+                // 2. Extrai a Versão do OCP
+                let ocpVersion = 'N/A';
+                if (jsonVersion && jsonVersion.status && jsonVersion.status.history && jsonVersion.status.history.length > 0) {
+                    // Pega a versão mais recente no histórico
+                    ocpVersion = jsonVersion.status.history[0].version;
+                } else if (jsonVersion && jsonVersion.status && jsonVersion.status.desired) {
+                     ocpVersion = jsonVersion.status.desired.version;
+                }
+
+                // 3. Cria um Mapa de CSVs para consulta rápida
+                // A chave será `namespace/nome`
+                const csvMap = new Map();
+                if (jsonCsvs && jsonCsvs.items) {
+                    jsonCsvs.items.forEach(csv => {
+                        const key = `${csv.metadata.namespace}/${csv.metadata.name}`;
+                        csvMap.set(key, csv);
+                    });
+                } else {
+                     showError('Formato do JSON de CSVs inesperado. Esperava um objeto com "items".');
+                    return;
+                }
+
+                // 4. Processa as Subscriptions e correlaciona com os CSVs
+                if (!jsonSubs || !jsonSubs.items) {
+                     showError('Formato do JSON de Subscriptions inesperado. Esperava um objeto com "items".');
+                    return;
+                }
+
+                jsonSubs.items.forEach(sub => {
+                    if (!sub.spec || !sub.status) return; // Ignora subscriptions malformadas
+
+                    const currentCSVName = sub.status.currentCSV;
+                    const subNamespace = sub.metadata.namespace;
+                    
+                    // A chave para o mapa de CSVs é `namespace/nome_do_csv`
+                    const csvKey = `${subNamespace}/${currentCSVName}`;
+                    const csv = csvMap.get(csvKey);
+                    
+                    let csvVersion = 'N/A';
+                    let maintainedByRedHat = false; // Padrão
+
+                    if (csv) {
+                        csvVersion = csv.spec.version || 'N/A';
+                        
+                        // Verifica se é mantido pela Red Hat
+                        // Checa pelo provider.name
+                        if (csv.spec.provider && csv.spec.provider.name) {
+                            maintainedByRedHat = csv.spec.provider.name.toLowerCase().includes('red hat');
+                        }
+                        // Checa também por labels, que é comum
+                        if (!maintainedByRedHat && csv.metadata.labels) {
+                            const providerType = csv.metadata.labels['operators.openshift.io/provider-type'];
+                            if (providerType && providerType.toLowerCase() === 'redhat') {
+                                maintainedByRedHat = true;
+                            }
+                        }
+                    }
+
+                    const newOperator = {
+                        id: sub.metadata.uid, // ID do K8s
+                        name: sub.spec.name,
+                        version: csvVersion,
+                        channel: sub.spec.channel || 'N/A',
+                        maintainedByRedHat: maintainedByRedHat,
+                        ocpVersion: ocpVersion
+                    };
+
+                    operators.push(newOperator);
+                });
+                
+                // 5. Renderiza a tabela
+                renderTable();
+            });
+
+            function showError(msg) {
+                errorMessage.textContent = msg;
+                errorMessage.classList.remove('hidden');
+            }
+
+            // Manipulador da exportação CSV
+            exportButton.addEventListener('click', () => {
+                if (operators.length === 0) {
+                    console.warn("Nenhum dado para exportar.");
+                    exportButton.textContent = "Nada para exportar!";
+                    setTimeout(() => { exportButton.textContent = "Exportar para CSV"; }, 2000);
+                    return;
+                }
+
+                // Cria o cabeçalho do CSV conforme solicitado
+                const headers = "Nome do Operador,Versão Instalada,Canal,Mantido pela Red Hat,Não Mantido pela Red Hat,Versão OpenShift\n";
+                
+                // Usa os dados já filtrados pela versão do OCP (se a tabela estiver visível)
+                // Vamos re-filtrar aqui para garantir
+                 const filteredOperators = operators.filter(op => {
+                    if (!op.ocpVersion || op.ocpVersion === 'N/A') return true;
+                    const [major, minor] = op.ocpVersion.split('.').map(Number);
+                    if (isNaN(major) || isNaN(minor)) return true;
+                    if (major > 4) return true;
+                    if (major === 4 && minor >= 14) return true;
+                    return false;
+                });
+
+
+                const csvRows = filteredOperators.map(op => {
+                    const maintained = op.maintainedByRedHat ? 'Sim' : 'Não';
+                    const notMaintained = op.maintainedByRedHat ? 'Não' : 'Sim';
+                    
+                    // Escapa valores que podem conter vírgulas (colocando entre aspas)
+                    const clean = (val) => `"${val.toString().replace(/"/g, '""')}"`;
+
+                    return [
+                        clean(op.name),
+                        clean(op.version),
+                        clean(op.channel),
+                        clean(maintained),
+                        clean(notMaintained),
+                        clean(op.ocpVersion)
+                    ].join(',');
+                });
+
+                const csvContent = headers + csvRows.join('\n');
+                
+                // Adiciona o BOM (Byte Order Mark) para o Excel entender o UTF-8
+                const bom = "\uFEFF";
+                const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'operadores_openshift.csv');
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            });
+        });
+    </script>
+</body>
+</html>
