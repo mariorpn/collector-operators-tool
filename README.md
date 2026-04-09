@@ -2,6 +2,8 @@
 
 This tool automates the auditing of operators installed in an OpenShift cluster. It correlates cluster data (Subscriptions and ClusterServiceVersions) with the official **Red Hat Product Lifecycle** to identify support dates, maintenance windows, and Extended Update Support (EUS/ELS) information.
 
+![alt text](images/report_image.png)
+
 ## Main Features
 
 -   **Automated Collection**: Retrieves `subscriptions` and `csvs` from all namespaces using the `oc` CLI.
